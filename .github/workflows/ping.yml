@@ -1,26 +1,59 @@
-name: 极简服务器状态监控
+name: 服务器状态监控 (保持常活版)
 
-# 定义定时触发：每 10 分钟运行一次
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    # - cron: '*/5 * * * *' # 建议设为 5 分钟一次，更稳定
   workflow_dispatch:
 
 jobs:
   check_status:
     runs-on: ubuntu-latest
     
-    # 定义环境变量：将 IP 从 Secret 传入脚本
-    env:
-      SERVER_IP: sr.ccmeta.cc
-
     steps:
     
     - name: 检出仓库代码
       uses: actions/checkout@v4
 
-    - name: 执行服务器检查脚本
-      run: bash ./monitor.sh
+    # -------------------------------------------------------------
+    # 步骤 1：检查服务器状态，并将结果保存为环境变量
+    # -------------------------------------------------------------
+    - name: 检查 Ping 状态
+      id: ping_test # 给这个步骤一个ID，方便后续步骤引用
+      env:
+        SERVER_IP: ccmeta.cc
+      run: |
+        # 尝试 Ping 服务器 3 次
+        if ping -c 3 -W 2 ${{ secrets.TARGET_IP }}; then
+            echo "SERVER_DOWN=false" >> $GITHUB_ENV
+            echo "✅ 服务器在线。"
+        else
+            echo "SERVER_DOWN=true" >> $GITHUB_ENV
+            echo "❌ 服务器已宕机，准备发送告警。"
+        fi
 
-# 当这个 Job 失败 (即 monitor.sh 返回 exit 1) 时，
-# GitHub 会自动给你的邮箱发送一封“Workflow Failed”的通知邮件！
+    # -------------------------------------------------------------
+    # 步骤 2：发送邮件通知 (仅在 Ping 失败时执行)
+    # -------------------------------------------------------------
+    - name: 发送告警邮件
+      # 关键：if 条件判断，只有当 SERVER_DOWN=true 时才运行此步骤
+      if: env.SERVER_DOWN == 'true'
+      uses: dawidd6/action-send-mail@v3
+      with:
+        # 发送方的 SMTP 服务器配置 (请根据你的邮箱服务修改)
+        server_address: smtp.gmail.com # 示例：如果是 Gmail
+        server_port: 465
+        # 登录信息
+        username: ${{ secrets.SENDER_EMAIL }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        
+        # 邮件内容
+        subject: 🔴 紧急告警：服务器 ${{ secrets.TARGET_IP }} 宕机！
+        body: |
+          监控系统在 ${{ github.job }} 任务中检测到您的服务器无响应。
+          请立即检查！
+        to: ${{ secrets.TARGET_EMAIL }} # 收件人
+        from: 自动监控系统
+        
+    # -------------------------------------------------------------
+    # Job 结束：由于所有步骤都成功运行或被跳过，Job 最终结果是成功 (绿色)
+    # -------------------------------------------------------------
