@@ -1,0 +1,87 @@
+以下是彻底关闭Windows 10自动更新的详细步骤，涵盖系统服务、注册表、组策略等多种方法，适用于不同版本（家庭版/专业版）。操作前请备份重要数据，并谨慎修改关键设置：
+
+
+
+一、禁用Windows Update服务（基础操作）
+
+1.停止并永久禁用服务
+
+按下 `Win + R`，输入 `services.msc`，找到 Windows Update服务。 双击打开，将「启动类型」设为 禁用，点击「停止」按钮。
+
+关键步骤：在「恢复」选项卡中，将所有失败后的操作改为「无操作」（防止服务自动重启）。
+
+
+
+2.禁用关联服务（增强效果） 同时禁用以下服务，避免后台自动恢复更新：Background Intelligent Transfer Service (BITS)Update Orchestrator ServiceMicrosoft Store Install Service
+
+
+
+二、组策略禁用更新（专业版/企业版）
+
+1.按下 `Win + R`，输入 `gpedit.msc`，进入组策略编辑器。
+
+2. 依次展开： 计算机配置 → 管理模板 → Windows组件 → Windows更新。
+
+3. 双重保险设置：
+
+双击「配置自动更新」，设为 已禁用。
+
+启用「删除使用所有Windows更新功能的访问权限」。
+
+启用「指定Intranet Microsoft更新服务位置」，填入无效地址（如 `127.0.0.1`）。
+
+
+
+三、注册表深度锁定（家庭版必选）
+
+1. 按下 `Win + R`，输入 `regedit`，定位到：
+
+`HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows`
+
+2. 新建项： 右击 `Windows` 选择「新建 → 项」，命名为 `WindowsUpdate`。
+
+在 `WindowsUpdate` 下再新建项 `AU`。
+
+3. 添加键值：
+
+在 `AU` 项中，新建 DWORD(32位)值，命名为 `NoAutoUpdate`，数值设为 `1`。 在 `WindowsUpdate` 项中，新DWORD值`DisableWindowsUpdateAccess`，数值设为 `1`。
+
+
+
+四、彻底清除任务计划
+
+1. 按下 `Win + R`，输入 `taskschd.msc`，进入任务计划程序。
+
+2. 禁用关键任务：
+
+`Microsoft\Windows\UpdateOrchestrator` 下的 Reboot 和 USO_UxBroker
+
+`Microsoft\Windows\WindowsUpdate` 下的所有任务（右键选择「禁用」）
+
+3. 删除顽固任务（需获取管理员权限）： 对无法直接禁用的任务，右键导出备份后直接删除。
+
+
+
+五、防火墙封锁更新（终极防护）
+
+1. 打开「控制面板 → Windows Defender 防火墙 → 高级设置」。
+
+2. 创建 出站规则： 阻止以下程序联网：
+
+- `C:\Windows\System32\svchost.exe`（关联Windows Update服务）
+
+- `C:\Windows\SoftwareDistribution\Download`（更新缓存目录）
+
+3. 阻止微软更新服务器域名： 在防火墙中屏蔽 `.http://update.microsoft.com` 和 `.http://windowsupdate.com`。
+
+六、替换系统文件（防复活机制）
+
+1. 打开 `C:\Windows\System32`，找到 `wuaueng.dll`（系统更新核心文件）。
+
+2. 重命名该文件为 `wuaueng.bak`（需获取TrustedInstaller权限，可用工具「TakeOwnershipPro」）。
+
+3. 新建同名空白文件 `wuaueng.dll`，设置为只读权限。
+
+
+
+通过上述多层级防护，可最大限度阻止Windows 10自动更新。操作时建议分阶段测试，避免系统异常。
